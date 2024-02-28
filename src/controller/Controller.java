@@ -1,5 +1,6 @@
 package controller;
 
+import java.io.File;
 import java.sql.SQLException;
 import java.util.ArrayList;
 import java.util.Scanner;
@@ -7,9 +8,23 @@ import java.util.Scanner;
 import dao.DaoImpl;
 import model.Card;
 import model.Player;
+import model.Players;
 import utils.Color;
-import utils.Constants;
+
 import utils.Number;
+import javax.xml.parsers.DocumentBuilder;
+import javax.xml.parsers.DocumentBuilderFactory;
+import javax.xml.parsers.ParserConfigurationException;
+import javax.xml.transform.Transformer;
+import javax.xml.transform.TransformerException;
+import javax.xml.transform.TransformerFactory;
+import javax.xml.transform.dom.DOMSource;
+import javax.xml.transform.stream.StreamResult;
+import org.w3c.dom.Document;
+import org.w3c.dom.Element;
+import javax.xml.bind.JAXBContext;
+import javax.xml.bind.JAXBException;
+import javax.xml.bind.Marshaller;
 
 /**
  * 
@@ -46,16 +61,25 @@ public class Controller {
 	 */
 	public void init() {
 		try {
+			
 			// connect to data
 			dao.connect();
 			
-			// if login ok 
+			// connect to data
+			// if login ok
 			if (loginUser()) {
+				
+				
+				// connect to data
 				// check last game
 				startGame();
+				
+			
+				// connect to data
 				// play turn based on cards in hand
 				playTurn();
 				
+				// connect to data
 				
 			} else
 				System.out.println("User or password incorrect.");
@@ -89,7 +113,10 @@ public class Controller {
 				showCards();				
 				System.out.println("Press -1 to take a new one.");
 				System.out.println("Press -2 to exit game.");
+				System.out.println("Press -3 to go to the RecuMenu.");
 				int position=0;
+				int positionMenu=0;
+				
 				do {
 					System.out.println("Select card to play.");
 					position = s.nextInt();
@@ -99,6 +126,30 @@ public class Controller {
 				} while (position>=cards.size());
 								
 				switch (position) {
+				case -3:
+				    positionMenu = 0;
+				    do {
+				        System.out.println("Select an option:");
+				        System.out.println("1. Save players data in file (Option F)");
+				        System.out.println("2. Save players data in XML with DOM");
+				        System.out.println("3. Save players data in XML with JAXB");
+				        System.out.println("Enter your choice:");
+				        positionMenu = s.nextInt();
+				    } while (positionMenu < 1 || positionMenu > 3);
+				    
+				    switch (positionMenu) {
+				        case 1:
+				            savePlayerDataToFile();
+				            break;
+				        case 2:
+				        	savePlayerDataInXML();
+				            break;
+				        case 3:
+				        	savePlayerDataInXMLUsingJAXB();
+				    }
+				    break;
+
+
 				case -2:
 					correctCard = true;
 					end = true;
@@ -111,8 +162,10 @@ public class Controller {
 
 				default:
 					card = selectCard(position);
+					System.out.println("Carta elegida:");
+					System.out.println(card);
 					correctCard = validateCard(card);
-
+					
 					// if skip or change side, remove it and finish game
 					if (correctCard) {
 						if (card.getNumber().equalsIgnoreCase(Number.SKIP.toString())
@@ -229,7 +282,9 @@ public class Controller {
 	 */
 	private void startGame() throws SQLException {
 		// get last cards of player
+		
 		cards = dao.getCards(player.getId());
+		System.out.println("carlitus");
 		
 		// if no cards, first game, take 3 cards
 		if (cards.size() == 0) drawCards(3);
@@ -264,10 +319,105 @@ public class Controller {
 			}
 					
 			Card c = new Card(id, number , color , player.getId());
+			
 			dao.saveCard(c);
 			cards.add(c);
 		}
 	}
+	
+	
+	
+	//RECUPERACION
+	
+	
+	
+	//OPTION FILE
+	
+	private void savePlayerDataToFile() {
+        dao.savePlayersDataToFile();
+    }
+	
+	
+	//OPTION DOM
+	
+	private void savePlayerDataInXML() {
+        try {
+            // Crear un nuevo documento XML
+            DocumentBuilderFactory dbFactory = DocumentBuilderFactory.newInstance();
+            DocumentBuilder dBuilder = dbFactory.newDocumentBuilder();
+            Document doc = dBuilder.newDocument();
+
+            // Crear el elemento raíz
+            Element rootElement = doc.createElement("Players");
+            doc.appendChild(rootElement);
+
+            
+            for (Player player : dao.getAllPlayers()) {
+                Element playerElement = doc.createElement("Player");
+                rootElement.appendChild(playerElement);
+
+                Element idElement = doc.createElement("ID");
+                idElement.appendChild(doc.createTextNode(String.valueOf(player.getId())));
+                playerElement.appendChild(idElement);
+
+                Element nameElement = doc.createElement("Name");
+                nameElement.appendChild(doc.createTextNode(player.getName()));
+                playerElement.appendChild(nameElement);
+
+                Element gamesElement = doc.createElement("Games");
+                gamesElement.appendChild(doc.createTextNode(String.valueOf(player.getGames())));
+                playerElement.appendChild(gamesElement);
+
+                Element victoriesElement = doc.createElement("Victories");
+                victoriesElement.appendChild(doc.createTextNode(String.valueOf(player.getVictories())));
+                playerElement.appendChild(victoriesElement);
+            }
+
+            // Guardar el documento XML en un archivo
+            TransformerFactory transformerFactory = TransformerFactory.newInstance();
+            Transformer transformer = transformerFactory.newTransformer();
+            DOMSource source = new DOMSource(doc);
+            StreamResult result = new StreamResult("files/players_dataDom.xml");
+            transformer.transform(source, result);
+
+            System.out.println("Player data saved in XML successfully.");
+        } catch (ParserConfigurationException | TransformerException | SQLException e) {
+            System.out.println("Error occurred while saving player data to XML: " + e.getMessage());
+        }
+    }
+	
+	
+	
+	
+	
+	
+	
+	private void savePlayerDataInXMLUsingJAXB() throws SQLException {
+	    try {
+	        // Crear contexto JAXB para la clase Players
+	        JAXBContext context = JAXBContext.newInstance(Players.class);
+
+	        // Crear un objeto Marshaller
+	        Marshaller marshaller = context.createMarshaller();
+
+	        // Formatear la salida XML
+	        marshaller.setProperty(Marshaller.JAXB_FORMATTED_OUTPUT, true);
+
+	        // Obtener los datos de los jugadores y guardarlos en un archivo XML
+	        ArrayList<Player> players = dao.getAllPlayers();
+	        Players playersWrapper = new Players(players);
+
+	        File file = new File("files/players_data_jaxb.xml");
+	        marshaller.marshal(playersWrapper, file);
+
+	        System.out.println("Player data saved in XML using JAXB successfully.");
+	    } catch (JAXBException e) {
+	        System.out.println("Error occurred while saving player data to XML using JAXB: " + e.getMessage());
+	    }
+	}
+
+	
+	
 
 
 }
